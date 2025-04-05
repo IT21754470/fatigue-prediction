@@ -389,6 +389,7 @@ def predict_fatigue():
             
             # Add stroke-specific distances and percentages
             total_distance = pred_row['Training Distance ']
+            
             if not is_rest_day and total_distance > 0:
                 for stroke, percentage in stroke_percentages.items():
                     # For intense days, focus more on primary stroke
