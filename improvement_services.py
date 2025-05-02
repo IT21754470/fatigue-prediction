@@ -17,7 +17,12 @@ def load_model():
         raise
 
 def get_prediction_description(value):
-    """Convert numerical prediction to description"""
+    """
+    Convert numerical prediction to description
+    Negative values are improvements in the model, but we want to display them
+    as positive values to the user
+    """
+    # Use the negative of value for thresholds since improvements are negative in the model
     if value < -0.2:
         return "significant improvement"
     elif value < -0.05:
@@ -70,12 +75,15 @@ def predict_with_models(df, model_package):
                     pred = model.predict(X)
                     pred_array = pred if isinstance(pred, list) else pred.tolist() if hasattr(pred, 'tolist') else [float(pred)]
                     
-                    # Create prediction descriptions
+                    # Create prediction descriptions using original values
                     descriptions = [get_prediction_description(p) for p in pred_array]
                     
+                    # Invert values for display (make improvements positive)
+                    inverted_pred_array = [-p for p in pred_array]
+                    
                     predictions[stroke] = {
-                        'predicted_improvement': pred_array,
-                        'descriptions': descriptions,
+                        'predicted_improvement': inverted_pred_array,  # Inverted values
+                        'descriptions': descriptions,  # Descriptions based on original values
                         'dates': processed_data['Date'].dt.strftime('%Y-%m-%d').tolist(),
                         'swimmer_ids': processed_data['Swimmer ID'].tolist(),
                         'accuracy': model_info['accuracy'],
@@ -111,8 +119,11 @@ def predict_with_models(df, model_package):
             pred = model.predict(X)
             pred_array = pred if isinstance(pred, list) else pred.tolist() if hasattr(pred, 'tolist') else [float(pred)]
             
-            # Create prediction descriptions
+            # Create prediction descriptions using original values
             descriptions = [get_prediction_description(p) for p in pred_array]
+            
+            # Invert values for display (make improvements positive)
+            inverted_pred_array = [-p for p in pred_array]
             
             # Get the actual stroke types from the original data
             stroke_types = []
@@ -131,8 +142,8 @@ def predict_with_models(df, model_package):
                 stroke_types.append(stroke_type)
             
             predictions['aggregated'] = {
-                'predicted_improvement': pred_array,
-                'descriptions': descriptions,
+                'predicted_improvement': inverted_pred_array,  # Inverted values
+                'descriptions': descriptions,  # Descriptions based on original values
                 'dates': processed_agg_data['Date'].dt.strftime('%Y-%m-%d').tolist(),
                 'swimmer_ids': processed_agg_data['Swimmer ID'].tolist(),
                 'accuracy': model_info['accuracy'],
@@ -144,6 +155,14 @@ def predict_with_models(df, model_package):
     
     return predictions
 
+def get_column_case_insensitive(df, column_name):
+    """Get a column by name, ignoring case and trailing spaces"""
+    for col in df.columns:
+        # Compare lowercased column names without whitespace
+        if col.lower().strip() == column_name.lower().strip():
+            return col
+    return None
+
 def generate_future_predictions(history_df, days_to_predict):
     """
     Generate predictions for future days based on historical data
@@ -153,6 +172,22 @@ def generate_future_predictions(history_df, days_to_predict):
     
     # Create empty dataframe for future predictions
     future_df = pd.DataFrame()
+    
+    # Get column names with proper casing
+    training_distance_col = get_column_case_insensitive(history_df, 'Training Distance')
+    session_duration_col = get_column_case_insensitive(history_df, 'Session Duration')
+    pool_length_col = get_column_case_insensitive(history_df, 'pool length')
+    pace_col = get_column_case_insensitive(history_df, 'pace per 100m')
+    laps_col = get_column_case_insensitive(history_df, 'laps')
+    heart_rate_col = get_column_case_insensitive(history_df, 'avg heart rate')
+    
+    # Use default column names if not found
+    training_distance_col = training_distance_col or 'Training Distance '
+    session_duration_col = session_duration_col or 'Session Duration (hrs)'
+    pool_length_col = pool_length_col or 'pool length'
+    pace_col = pace_col or 'pace per 100m'
+    laps_col = laps_col or 'laps'
+    heart_rate_col = heart_rate_col or 'avg heart rate'
     
     for swimmer_id in swimmers:
         swimmer_data = history_df[history_df['Swimmer ID'] == swimmer_id]
@@ -178,12 +213,12 @@ def generate_future_predictions(history_df, days_to_predict):
                         'Swimmer ID': swimmer_id,
                         'Date': future_date,
                         'Stroke Type': stroke,
-                        'pool length': stroke_data['pool length'].mean(),
-                        'Training Distance ': stroke_data['Training Distance '].mean(),
-                        'Session Duration (hrs)': stroke_data['Session Duration (hrs)'].mean(),
-                        'pace per 100m': stroke_data['pace per 100m'].mean(),
-                        'laps': stroke_data['laps'].mean(),
-                        'avg heart rate': stroke_data['avg heart rate'].mean(),
+                        pool_length_col: stroke_data[pool_length_col].mean() if pool_length_col in stroke_data.columns else 50,
+                        training_distance_col: stroke_data[training_distance_col].mean() if training_distance_col in stroke_data.columns else 3000,
+                        session_duration_col: stroke_data[session_duration_col].mean() if session_duration_col in stroke_data.columns else 1.5,
+                        pace_col: stroke_data[pace_col].mean() if pace_col in stroke_data.columns else 70,
+                        laps_col: stroke_data[laps_col].mean() if laps_col in stroke_data.columns else 60,
+                        heart_rate_col: stroke_data[heart_rate_col].mean() if heart_rate_col in stroke_data.columns else 150,
                         'predicted improvement (s)': 0  # This will be predicted
                     }
                     
@@ -225,7 +260,7 @@ def predict_improvement(history_json, days_to_predict=7):
         for stroke, pred_data in historical_predictions.items():
             for i in range(len(pred_data['dates'])):
                 date = pred_data['dates'][i]
-                improvement = pred_data['predicted_improvement'][i]
+                improvement = pred_data['predicted_improvement'][i]  # Already inverted
                 description = pred_data['descriptions'][i]
                 swimmer_id = pred_data['swimmer_ids'][i]
                 stroke_type = pred_data['stroke_types'][i] if 'stroke_types' in pred_data else stroke
@@ -236,7 +271,7 @@ def predict_improvement(history_json, days_to_predict=7):
                 historical_by_date[date].append({
                     'swimmer_id': swimmer_id,
                     'stroke': stroke_type,
-                    'improvement': improvement,
+                    'improvement': improvement,  # Positive value
                     'description': description
                 })
         
@@ -247,7 +282,7 @@ def predict_improvement(history_json, days_to_predict=7):
         for stroke, pred_data in future_predictions.items():
             for i in range(len(pred_data['dates'])):
                 date = pred_data['dates'][i]
-                improvement = pred_data['predicted_improvement'][i]
+                improvement = pred_data['predicted_improvement'][i]  # Already inverted
                 description = pred_data['descriptions'][i]
                 swimmer_id = pred_data['swimmer_ids'][i]
                 stroke_type = pred_data['stroke_types'][i] if 'stroke_types' in pred_data else stroke
@@ -258,7 +293,7 @@ def predict_improvement(history_json, days_to_predict=7):
                 future_by_date[date].append({
                     'swimmer_id': swimmer_id,
                     'stroke': stroke_type,
-                    'improvement': improvement,
+                    'improvement': improvement,  # Positive value
                     'description': description
                 })
         
@@ -301,10 +336,10 @@ def predict_improvement(history_json, days_to_predict=7):
             if all_predictions:
                 avg_improvement = sum(all_predictions) / len(all_predictions)
                 
-                # Generate summary
-                if avg_improvement < -0.1:
+                # Generate summary - now using positive values for improvements
+                if avg_improvement > 0.1:
                     trend = "consistently improving"
-                elif avg_improvement > 0.1:
+                elif avg_improvement < -0.1:
                     trend = "showing performance decline"
                 else:
                     trend = "maintaining stable performance"
