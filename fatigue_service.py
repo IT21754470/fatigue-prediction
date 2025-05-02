@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
-from fatigue_utils import preprocess_data, create_enhanced_features, make_json_serializable
+from fatigue_utils import preprocess_data, create_enhanced_features, make_json_serializable, calculate_intensity
 
 # Load the model
 print("Loading model...")
@@ -62,7 +62,7 @@ def process_training_history(history):
     
     # Ensure all required columns exist
     required_columns = ['Swimmer ID', 'Date', 'Stroke Type', 'Training Distance ', 
-                       'Session Duration (hrs)', 'Intensity', 'Rest hours', 
+                       'Session Duration (hrs)', 'Rest hours', 
                        'Recovery Days', 'avg heart rate', 'RPE(1-10)']
     
     for col in required_columns:
@@ -79,9 +79,13 @@ def process_training_history(history):
             else:
                 history_df[col] = 0
     
+    # Calculate intensity if not provided
+    if 'Intensity' not in history_df.columns:
+        history_df['Intensity'] = history_df.apply(calculate_intensity, axis=1)
+    
     # Add Fatigue_Numeric if missing with deterministic calculation
     if 'Fatigue_Numeric' not in history_df.columns:
-        # Use RPE to estimate fatigue level deterministically
+        # Use RPE and calculated intensity to estimate fatigue level
         def estimate_fatigue(row):
             rpe = row.get('RPE(1-10)', 0)
             intensity = row.get('Intensity', 0)
@@ -120,7 +124,6 @@ def predict_fatigue_levels(history, days_to_predict=7):
         typical_values = {
             'Training Distance ': training_data['Training Distance '].median(),
             'Session Duration (hrs)': training_data['Session Duration (hrs)'].median(),
-            'Intensity': training_data['Intensity'].median(),
             'Rest hours': training_data['Rest hours'].median(),
             'Recovery Days': 0,
             'avg heart rate': training_data['avg heart rate'].median(),
@@ -130,7 +133,6 @@ def predict_fatigue_levels(history, days_to_predict=7):
         typical_values = {
             'Training Distance ': 3000,
             'Session Duration (hrs)': 1.5,
-            'Intensity': 7,
             'Rest hours': 8,
             'Recovery Days': 0,
             'avg heart rate': 150,
@@ -193,7 +195,6 @@ def predict_fatigue_levels(history, days_to_predict=7):
             'Session Duration (hrs)': 0 if is_rest_day else (
                 typical_values['Session Duration (hrs)'] * 1.2 if is_intense_day else typical_values['Session Duration (hrs)']
             ),
-            'Intensity': 1 if is_rest_day else (9 if is_intense_day else typical_values['Intensity']),
             'Rest hours': 24 if is_rest_day else (6 if is_intense_day else typical_values['Rest hours']),
             'Recovery Days': 1 if is_rest_day else 0,
             'avg heart rate': 70 if is_rest_day else (
@@ -202,8 +203,16 @@ def predict_fatigue_levels(history, days_to_predict=7):
             'RPE(1-10)': 1 if is_rest_day else (8 if is_intense_day else typical_values['RPE(1-10)']),
             'day_of_week': future_date.dayofweek,
             'month': future_date.month,
-            'Fatigue_Numeric': 1 if is_rest_day else (3 if is_intense_day else 2)  # Initial estimate
         }
+        
+        # Calculate intensity rather than setting it directly
+        if is_rest_day:
+            pred_row['Intensity'] = 1
+        else:
+            pred_row['Intensity'] = calculate_intensity(pred_row)
+            
+        # Set initial fatigue based on calculated intensity
+        pred_row['Fatigue_Numeric'] = 1 if is_rest_day else (3 if pred_row['Intensity'] >= 8 else 2)
         
         # Add to current data
         temp_df = pd.concat([current_data, pd.DataFrame([pred_row])], ignore_index=True)
@@ -238,7 +247,8 @@ def predict_fatigue_levels(history, days_to_predict=7):
                     'fatigue_level': fatigue_category,
                     'fatigue_numeric': int(fatigue_numeric),
                     'is_rest_day': bool(is_rest_day),
-                    'training_distance': round(float(pred_row['Training Distance '])) if not is_rest_day else 0
+                    'training_distance': round(float(pred_row['Training Distance '])) if not is_rest_day else 0,
+                    'calculated_intensity': round(float(pred_row['Intensity']))
                 })
                 
                 # Update for next iteration
@@ -250,7 +260,7 @@ def predict_fatigue_levels(history, days_to_predict=7):
                 # Use deterministic fallback
                 if is_rest_day:
                     fatigue_numeric = 1  # Low for rest days
-                elif is_intense_day:
+                elif pred_row['Intensity'] >= 8:
                     fatigue_numeric = 3  # High for intense days
                 else:
                     fatigue_numeric = 2  # Moderate for regular days
@@ -263,7 +273,8 @@ def predict_fatigue_levels(history, days_to_predict=7):
                     'fatigue_level': fatigue_category,
                     'fatigue_numeric': int(fatigue_numeric),
                     'is_rest_day': bool(is_rest_day),
-                    'training_distance': round(float(pred_row['Training Distance '])) if not is_rest_day else 0
+                    'training_distance': round(float(pred_row['Training Distance '])) if not is_rest_day else 0,
+                    'calculated_intensity': round(float(pred_row['Intensity']))
                 })
                 
                 # Update for next iteration
@@ -273,7 +284,7 @@ def predict_fatigue_levels(history, days_to_predict=7):
             # Handle empty dataframe case
             if is_rest_day:
                 fatigue_numeric = 1  # Low for rest days
-            elif is_intense_day:
+            elif pred_row['Intensity'] >= 8:
                 fatigue_numeric = 3  # High for intense days
             else:
                 fatigue_numeric = 2  # Moderate for regular days
@@ -286,7 +297,8 @@ def predict_fatigue_levels(history, days_to_predict=7):
                 'fatigue_level': fatigue_category,
                 'fatigue_numeric': int(fatigue_numeric),
                 'is_rest_day': bool(is_rest_day),
-                'training_distance': round(float(pred_row['Training Distance '])) if not is_rest_day else 0
+                'training_distance': round(float(pred_row['Training Distance '])) if not is_rest_day else 0,
+                'calculated_intensity': round(float(pred_row['Intensity']))
             })
             
             # Update for next iteration

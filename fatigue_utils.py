@@ -21,6 +21,66 @@ def make_json_serializable(obj):
     else:
         return obj
 
+# Calculate intensity based on other metrics
+def calculate_intensity(row):
+    """
+    Calculate workout intensity based on other available metrics
+    Returns a value between 1-10
+    """
+    # Base factors that influence intensity
+    factors = []
+    weights = []
+    
+    # Use RPE if available (strong indicator of intensity)
+    if 'RPE(1-10)' in row and not pd.isna(row['RPE(1-10)']):
+        factors.append(row['RPE(1-10)'])
+        weights.append(2.0)  # Give RPE a strong weight
+    
+    # Use heart rate if available
+    if 'avg heart rate' in row and not pd.isna(row['avg heart rate']):
+        # Convert heart rate to intensity scale (assuming 60-200 range maps to 1-10)
+        hr_min, hr_max = 60, 200
+        hr = max(min(row['avg heart rate'], hr_max), hr_min)  # Clamp to range
+        hr_intensity = 1 + 9 * (hr - hr_min) / (hr_max - hr_min)
+        factors.append(hr_intensity)
+        weights.append(1.5)
+    
+    # Consider training distance relative to typical distances
+    if 'Training Distance ' in row and not pd.isna(row['Training Distance ']):
+        # Assuming typical distances range from 0 to 8000m
+        dist_max = 8000
+        dist_intensity = min(10 * row['Training Distance '] / dist_max, 10)
+        factors.append(dist_intensity)
+        weights.append(1.0)
+    
+    # Consider session duration
+    if 'Session Duration (hrs)' in row and not pd.isna(row['Session Duration (hrs)']):
+        # Longer sessions might indicate lower intensity, shorter might be higher
+        # Inverse relationship: 0.5hr -> intensity factor of 8, 2hr -> intensity factor of 2
+        duration = row['Session Duration (hrs)']
+        if duration > 0:
+            duration_intensity = max(10 - 4 * duration, 1)
+            factors.append(duration_intensity)
+            weights.append(0.8)
+    
+    # Consider rest hours (less rest might indicate higher intensity training)
+    if 'Rest hours' in row and not pd.isna(row['Rest hours']):
+        rest_intensity = max(10 - row['Rest hours'] / 2.4, 1)  # 24hrs rest -> intensity 1
+        factors.append(rest_intensity)
+        weights.append(0.5)
+    
+    # If we have no factors, return a default intensity
+    if not factors:
+        return 5  # Middle intensity as default
+    
+    # Calculate weighted average
+    weighted_sum = sum(f * w for f, w in zip(factors, weights))
+    total_weight = sum(weights)
+    
+    # Return rounded intensity between 1-10
+    intensity = round(weighted_sum / total_weight)
+    return max(1, min(intensity, 10))  # Ensure it's between 1-10
+
 # Preprocess data
 def preprocess_data(df):
     # Create a copy to avoid modifying the original
@@ -48,6 +108,10 @@ def preprocess_data(df):
             'Rest': 5
         }
         df['Stroke Type'] = df['Stroke Type'].map(lambda x: stroke_mapping.get(x, 0))
+    
+    # Calculate intensity if not provided
+    if 'Intensity' not in df.columns:
+        df['Intensity'] = df.apply(calculate_intensity, axis=1)
     
     # Handle other categorical features
     categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
