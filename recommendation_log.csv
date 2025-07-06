@@ -1,6 +1,0 @@
-swimmer_id,date,stroke_type,predicted_improvement,fatigue_level,recommendation,success
-8,2025-04-15,free,0.12,Moderate,recovery_focus,True
-8,2025-04-15,free,0.12,Moderate,recovery_focus,True
-8,2025-04-15,free,0.12,Moderate,recovery_focus,True
-8,2025-04-15,backstroke,0.12,Moderate,intensity_focus,True
-8,2025-04-15,backstroke,0.12,Moderate,Recommended training focus: intensity_focus,True
