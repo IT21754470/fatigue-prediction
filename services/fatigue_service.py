@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
-from fatigue_utils import preprocess_data, create_enhanced_features, make_json_serializable, calculate_intensity
+from utils.fatigue_utils import preprocess_data, create_enhanced_features, make_json_serializable, calculate_intensity
 
 # Load the model
 print("Loading model...")
 try:
-    with open('random_forest_fatigue_model.pkl', 'rb') as f:
+    with open('models/random_forest_fatigue_model.pkl', 'rb') as f:
         model_data = pickle.load(f)
     
     # Extract model and features

@@ -4,7 +4,7 @@ Swimming recommendation service with ML model loading and prediction logic
 import pickle
 import pandas as pd
 import numpy as np
-from recommendation_utils import get_recommendation_text
+from utils.recommendation_utils import get_recommendation_text
 
 class RecommendationService:
     def __init__(self):
@@ -35,7 +35,7 @@ class RecommendationService:
         if self.model is not None and hasattr(self.model, 'classes_'):
             return sorted(self.model.classes_.tolist())
         # Return default codes if model doesn't have classes_
-        from recommendation_utils import RECOMMENDATIONS
+        from utils.recommendation_utils import RECOMMENDATIONS
         return sorted(list(RECOMMENDATIONS.keys()))
     
     def predict_grshort(self, improvement, fatigue_level, stroke_type):

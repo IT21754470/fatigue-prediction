@@ -2,11 +2,11 @@ from flask import Flask, request, jsonify, render_template_string
 import traceback
 import json
 from datetime import datetime
-from fatigue_service import predict_fatigue_levels
-from improvement_services import predict_improvement
-from improvement_utils import make_json_serializable
-from recommendation_service import recommendation_service
-from recommendation_utils import format_prediction_response
+from services.fatigue_service import predict_fatigue_levels
+from services.improvement_services import predict_improvement
+from utils.improvement_utils import make_json_serializable
+from services.recommendation_service import recommendation_service
+from utils.recommendation_utils import format_prediction_response
 
 
 app = Flask(__name__)
@@ -17,7 +17,7 @@ app = Flask(__name__)
 def get_dataset_info():
     """Get information about the loaded dataset"""
     try:
-        from recommendation_service import get_dataset_information
+        from services.recommendation_service import get_dataset_information
         dataset_info = get_dataset_information()
         return jsonify(make_json_serializable(dataset_info))
     except Exception as e:

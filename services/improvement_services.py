@@ -3,7 +3,7 @@ import numpy as np
 import pickle
 from datetime import datetime, timedelta
 import os
-from improvement_utils import convert_json_to_dataframe, aggregate_sessions, create_enhanced_features, make_json_serializable
+from utils.improvement_utils import convert_json_to_dataframe, aggregate_sessions, create_enhanced_features, make_json_serializable
 
 # Load the model package
 def load_model():
