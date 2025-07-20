@@ -4,7 +4,7 @@ import pickle
 def load_model():
     try:
         # Adjust path to go up two levels to project root, then into models/
-        model_path = Path(__file__).resolve().parents[2] / 'models' / 'swimming_improvement_models.pkl'
+        model_path = Path(__file__).resolve().parents[2] / 'models/swimming_improvement_models.pkl'
         print("Trying to load model from:", model_path)
 
         if not model_path.exists():
