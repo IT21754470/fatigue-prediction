@@ -1,5 +1,7 @@
 from pathlib import Path
 import pickle
+import sklearn
+import warnings
 
 def load_model():
     try:
