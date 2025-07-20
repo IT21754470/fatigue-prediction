@@ -8,7 +8,7 @@ from utils.improvement_utils import convert_json_to_dataframe, aggregate_session
 # Load the model package
 def load_model():
     try:
-        model_path = os.path.join(os.path.dirname(__file__), 'models/swimming_improvement_models.pkl')
+        model_path = Path(__file__).parent / 'models' / 'swimming_improvement_models.pkl'
         with open(model_path, 'rb') as f:
             loaded_models = pickle.load(f)
         return loaded_models
