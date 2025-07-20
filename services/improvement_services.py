@@ -2,7 +2,12 @@ from pathlib import Path
 import pickle
 import sklearn
 import warnings
-
+from utils.improvement_utils import (
+    convert_json_to_dataframe,
+    aggregate_sessions, 
+    create_enhanced_features,
+    make_json_serializable
+)
 def load_model():
     try:
         model_path = Path(__file__).resolve().parent / 'swimming_improvement_models.pkl'
