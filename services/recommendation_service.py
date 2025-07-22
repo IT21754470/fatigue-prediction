@@ -16,7 +16,7 @@ class RecommendationService:
         print("Loading model components...")
         try:
             # Try to load the grshort model
-            with open('grshort_model.pkl', 'rb') as f:
+            with open('models/grshort_model.pkl', 'rb') as f:
                 self.model = pickle.load(f)
             print("✅ Grshort model loaded successfully!")
         except FileNotFoundError:
