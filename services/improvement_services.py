@@ -10,8 +10,10 @@ from utils.improvement_utils import (
     convert_json_to_dataframe,
     aggregate_sessions, 
     create_enhanced_features,
-    make_json_serializable
+    make_json_serializable,
+    generate_explanations_for_prediction  # NEW IMPORT
 )
+
 def load_model():
     try:
         model_path = Path(__file__).resolve().parent / 'swimming_improvement_models.pkl'
@@ -130,7 +132,7 @@ def get_prediction_description(value):
 
 def predict_with_models(df, model_package):
     """
-    Make predictions using the combined model package
+    Make predictions using the combined model package WITH EXPLANATIONS
     """
     predictions = {}
     models = model_package['models']
@@ -175,15 +177,30 @@ def predict_with_models(df, model_package):
                     # Invert values for display (make improvements positive)
                     inverted_pred_array = [-p for p in pred_array]
                     
+                    # ✅ GENERATE EXPLANATIONS FOR EACH PREDICTION
+                    all_reasons = []
+                    all_top_factors = []
+                    
+                    for i in range(len(pred_array)):
+                        explanation = generate_explanations_for_prediction(
+                            X.iloc[i],
+                            inverted_pred_array[i],
+                            model_features
+                        )
+                        all_reasons.append(explanation['reasons'])
+                        all_top_factors.append(explanation['top_factors'])
+                    
                     predictions[stroke] = {
-                        'predicted_improvement': inverted_pred_array,  # Inverted values
-                        'descriptions': descriptions,  # Descriptions based on original values
+                        'predicted_improvement': inverted_pred_array,
+                        'descriptions': descriptions,
                         'dates': processed_data['Date'].dt.strftime('%Y-%m-%d').tolist(),
                         'swimmer_ids': processed_data['Swimmer ID'].tolist(),
                         'accuracy': model_info['accuracy'],
-                        'stroke_types': [stroke] * len(pred_array)
+                        'stroke_types': [stroke] * len(pred_array),
+                        'reasons': all_reasons,  # ✅ ADD REASONS
+                        'top_factors': all_top_factors  # ✅ ADD TOP FACTORS
                     }
-                    print(f"Made {len(pred_array)} predictions for {stroke}")
+                    print(f"Made {len(pred_array)} predictions with explanations for {stroke}")
                 except Exception as e:
                     print(f"Error predicting for {stroke}: {str(e)}")
     
@@ -235,15 +252,30 @@ def predict_with_models(df, model_package):
                     stroke_type = "Unknown"
                 stroke_types.append(stroke_type)
             
+            # ✅ GENERATE EXPLANATIONS FOR AGGREGATED PREDICTIONS
+            all_reasons = []
+            all_top_factors = []
+            
+            for i in range(len(pred_array)):
+                explanation = generate_explanations_for_prediction(
+                    X.iloc[i],
+                    inverted_pred_array[i],
+                    model_features
+                )
+                all_reasons.append(explanation['reasons'])
+                all_top_factors.append(explanation['top_factors'])
+            
             predictions['aggregated'] = {
-                'predicted_improvement': inverted_pred_array,  # Inverted values
-                'descriptions': descriptions,  # Descriptions based on original values
+                'predicted_improvement': inverted_pred_array,
+                'descriptions': descriptions,
                 'dates': processed_agg_data['Date'].dt.strftime('%Y-%m-%d').tolist(),
                 'swimmer_ids': processed_agg_data['Swimmer ID'].tolist(),
                 'accuracy': model_info['accuracy'],
-                'stroke_types': stroke_types
+                'stroke_types': stroke_types,
+                'reasons': all_reasons,  # ✅ ADD REASONS
+                'top_factors': all_top_factors  # ✅ ADD TOP FACTORS
             }
-            print(f"Made {len(pred_array)} aggregated predictions")
+            print(f"Made {len(pred_array)} aggregated predictions with explanations")
         except Exception as e:
             print(f"Error making aggregated prediction: {str(e)}")
     
@@ -354,10 +386,14 @@ def predict_improvement(history_json, days_to_predict=7):
         for stroke, pred_data in historical_predictions.items():
             for i in range(len(pred_data['dates'])):
                 date = pred_data['dates'][i]
-                improvement = pred_data['predicted_improvement'][i]  # Already inverted
+                improvement = pred_data['predicted_improvement'][i]
                 description = pred_data['descriptions'][i]
                 swimmer_id = pred_data['swimmer_ids'][i]
                 stroke_type = pred_data['stroke_types'][i] if 'stroke_types' in pred_data else stroke
+                
+                # ✅ GET REASONS AND TOP FACTORS
+                reasons = pred_data['reasons'][i] if 'reasons' in pred_data else []
+                top_factors = pred_data['top_factors'][i] if 'top_factors' in pred_data else []
                 
                 if date not in historical_by_date:
                     historical_by_date[date] = []
@@ -365,8 +401,10 @@ def predict_improvement(history_json, days_to_predict=7):
                 historical_by_date[date].append({
                     'swimmer_id': swimmer_id,
                     'stroke': stroke_type,
-                    'improvement': improvement,  # Positive value
-                    'description': description
+                    'improvement': improvement,
+                    'description': description,
+                    'reasons': reasons,  # ✅ ADD REASONS
+                    'top_factors': top_factors  # ✅ ADD TOP FACTORS
                 })
         
         # Reorganize future predictions by date
@@ -376,10 +414,14 @@ def predict_improvement(history_json, days_to_predict=7):
         for stroke, pred_data in future_predictions.items():
             for i in range(len(pred_data['dates'])):
                 date = pred_data['dates'][i]
-                improvement = pred_data['predicted_improvement'][i]  # Already inverted
+                improvement = pred_data['predicted_improvement'][i]
                 description = pred_data['descriptions'][i]
                 swimmer_id = pred_data['swimmer_ids'][i]
                 stroke_type = pred_data['stroke_types'][i] if 'stroke_types' in pred_data else stroke
+                
+                # ✅ GET REASONS AND TOP FACTORS
+                reasons = pred_data['reasons'][i] if 'reasons' in pred_data else []
+                top_factors = pred_data['top_factors'][i] if 'top_factors' in pred_data else []
                 
                 if date not in future_by_date:
                     future_by_date[date] = []
@@ -387,8 +429,10 @@ def predict_improvement(history_json, days_to_predict=7):
                 future_by_date[date].append({
                     'swimmer_id': swimmer_id,
                     'stroke': stroke_type,
-                    'improvement': improvement,  # Positive value
-                    'description': description
+                    'improvement': improvement,
+                    'description': description,
+                    'reasons': reasons,  # ✅ ADD REASONS
+                    'top_factors': top_factors  # ✅ ADD TOP FACTORS
                 })
         
         # Prepare response

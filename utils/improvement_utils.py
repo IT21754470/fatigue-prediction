@@ -152,3 +152,105 @@ def create_enhanced_features(swimmer_data, target='predicted improvement (s)'):
     enhanced_data[numeric_cols] = enhanced_data[numeric_cols].fillna(0)
     
     return enhanced_data
+
+def generate_explanations_for_prediction(sample_data, prediction_value, feature_names):
+    """
+    Generate human-readable explanations for a single prediction
+    Works with any model type - no SHAP needed
+    """
+    reasons = []
+    top_factors = []
+    
+    # Training intensity analysis
+    if 'Intensity' in sample_data and sample_data['Intensity'] > 0:
+        intensity = sample_data['Intensity']
+        if intensity > 7.5:
+            reasons.append(f"Very high training intensity ({intensity:.1f}/10)")
+            top_factors.append('Intensity')
+        elif intensity > 5.5:
+            reasons.append(f"High training intensity ({intensity:.1f}/10)")
+            top_factors.append('Intensity')
+        elif intensity < 3.0:
+            reasons.append(f"Low training intensity ({intensity:.1f}/10)")
+            top_factors.append('Intensity')
+    
+    # Recent improvement trends
+    if 'improvement_lag_1' in sample_data and sample_data['improvement_lag_1'] != 0:
+        prev_improvement = sample_data['improvement_lag_1']
+        if prev_improvement > 0.5:  # Remember: positive = improvement in your inverted system
+            reasons.append("Recent positive performance trend")
+            top_factors.append('improvement_lag_1')
+        elif prev_improvement < -0.5:
+            reasons.append("Recent performance decline pattern")
+            top_factors.append('improvement_lag_1')
+    
+    # Training volume
+    if 'acute_distance' in sample_data and sample_data['acute_distance'] > 0:
+        distance = sample_data['acute_distance']
+        if distance > 8000:
+            reasons.append(f"High weekly training volume ({distance:.0f}m)")
+            top_factors.append('acute_distance')
+        elif distance > 5000:
+            reasons.append(f"Moderate training volume ({distance:.0f}m)")
+            top_factors.append('acute_distance')
+        elif distance < 2000:
+            reasons.append(f"Low training volume ({distance:.0f}m)")
+            top_factors.append('acute_distance')
+    
+    # Pace trends
+    if 'pace_3day_avg' in sample_data and sample_data['pace_3day_avg'] > 0:
+        pace = sample_data['pace_3day_avg']
+        if pace < 70:
+            reasons.append(f"Fast average pace ({pace:.1f}s/100m)")
+            top_factors.append('pace_3day_avg')
+        elif pace > 120:
+            reasons.append(f"Slow average pace ({pace:.1f}s/100m)")
+            top_factors.append('pace_3day_avg')
+    
+    # Heart rate analysis
+    if 'hr_3day_avg' in sample_data and sample_data['hr_3day_avg'] > 0:
+        hr = sample_data['hr_3day_avg']
+        if hr > 165:
+            reasons.append(f"Very high heart rate ({hr:.0f} bpm)")
+            top_factors.append('hr_3day_avg')
+        elif hr > 150:
+            reasons.append(f"Elevated heart rate ({hr:.0f} bpm)")
+            top_factors.append('hr_3day_avg')
+        elif hr < 110:
+            reasons.append(f"Low heart rate ({hr:.0f} bpm)")
+            top_factors.append('hr_3day_avg')
+    
+    # Rest interval
+    if 'rest interval' in sample_data and sample_data['rest interval'] > 0:
+        rest = sample_data['rest interval']
+        if rest < 30:
+            reasons.append(f"Short rest intervals ({rest:.0f}s)")
+            top_factors.append('rest interval')
+        elif rest > 120:
+            reasons.append(f"Long rest intervals ({rest:.0f}s)")
+            top_factors.append('rest interval')
+    
+    # Session duration
+    if 'Session Duration (hrs)' in sample_data and sample_data['Session Duration (hrs)'] > 0:
+        duration = sample_data['Session Duration (hrs)']
+        if duration > 2.5:
+            reasons.append(f"Long training session ({duration:.1f} hours)")
+            top_factors.append('Session Duration (hrs)')
+        elif duration < 0.5:
+            reasons.append(f"Short training session ({duration:.1f} hours)")
+            top_factors.append('Session Duration (hrs)')
+    
+    # If not enough specific reasons, add general ones based on prediction
+    if len(reasons) < 2:
+        if prediction_value > 0.1:  # Improvement (positive in your inverted system)
+            reasons.append("Overall training pattern shows improvement")
+        elif prediction_value < -0.1:  # Decline
+            reasons.append("Training load may need adjustment")
+        else:
+            reasons.append("Stable performance expected")
+    
+    # Return top 3 reasons
+    return {
+        'reasons': reasons[:3],
+        'top_factors': top_factors[:3]
+    }
