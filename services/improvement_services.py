@@ -19,7 +19,9 @@ def load_model():
         model_path = Path(__file__).resolve().parent / 'swimming_improvement_models.pkl'
         print("Trying to load model from:", model_path)
         print(f"Current scikit-learn version: {sklearn.__version__}")
-
+    except Exception as e:
+        print(f"Error loading model: {str(e)}")
+        return create_compatible_fallback_model() 
         if not model_path.exists():
             raise FileNotFoundError(f"Model file not found at: {model_path}")
 
